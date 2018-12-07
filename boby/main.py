@@ -1,9 +1,5 @@
-from queryRDF import requestTriples
-from createRDF import createGraph, insertTripleV6, createTripleV6, formatTriple
-from rdflib.tools import rdf2dot
-from graphviz import render
-
-
+from boby.queryRDF import requestTriples
+from boby.createRDF import createGraph, insertTripleV6, createTripleV6, formatTriple
 
 graphV6 = createGraph("rdf/generatedRdfV6.ttl")
 

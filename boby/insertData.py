@@ -1,4 +1,4 @@
-from createRDF import createGraph, insertTripleV6
+from boby.createRDF import createGraph, insertTripleV6
 
 graphV6 = createGraph("rdf/generatedRdfV6.ttl")
 insertTripleV6(graphV6, "rdf/generatedRdfV6.ttl",
