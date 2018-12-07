@@ -1,0 +1,59 @@
+@prefix : <file:///D:/Projets/BOBI/BobiRDF/rdfMetier.ttl#>.
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+:Metier a rdfs:Class .
+
+:Fait a rdfs:Property .
+
+:Action a rdfs:Class .
+
+:Coder a :Action;
+    rdfs:label "Coder" .
+
+:Developper a :Action;
+    rdfs:label "Développer" .
+
+
+:GestionProjet a :Action;
+    rdfs:label "Gestion de projet" .
+
+:Manager a :Action;
+    rdfs:label "Manager une équipe" .
+
+:TravaillerEquipe a :Action;
+    rdfs:label "Travailler en équipe" .
+
+:Prospecter a :Action;
+    rdfs:label "Prospecter des profils" .
+
+:MenerEntretienEmbauche a :Action;
+    rdfs:label "Mener des entretiens d'embauche" .
+
+:RencontrerCandidat a :Action;
+    rdfs:label "Rencontrer des candidats" .
+
+:ProjetAgile a :Action;
+    rdfs:label "Travailler sur un projet en mode Agile" .
+
+:ScrumMaster a :Metier;
+    rdfs:label "Scrum Master";
+    :Fait :Manager;
+    :Fait :GestionProjet;
+    :Fait :ProjetAgile;
+    :Fait :TravaillerEquipe .
+
+:Developpeur a :Metier;
+    rdfs:label "Développeur";
+    :Fait :Coder;
+    :Fait :Developper;
+    :Fait :ProjetAgile;
+    :Fait :TravaillerEquipe .
+
+:Recruteur a :Metier;
+    rdfs:label "Recruteur";
+    :Fait :Prospecter;
+    :Fait :MenerEntretienEmbauche;
+    :Fait :RencontrerCandidat;
+    :Fait :TravaillerEquipe .
+
