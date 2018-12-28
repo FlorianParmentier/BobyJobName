@@ -1,19 +1,19 @@
-from nltk.parse import CoreNLPParser
 from nltk.tree import Tree
 from spacy.lang.fr import French
 from rdflib import Graph, Literal, RDF, RDFS, Namespace, BNode, URIRef
 import pathlib
 import os
 from unidecode import unidecode
-import treetaggerwrapper
+import fr_core_news_md
+from spacy_lefff import LefffLemmatizer, POSTagger
 
-# Get access to the Stanford Parser server (don't forget to start the server before)
-# Unable to catch exception  if the server is not started. (Exception occur inside the function and can not be catched
-# with try/ except block
-parser = CoreNLPParser(url='http://localhost:9004')
 
-# Load spacy french model
-nlp = French()
+nlp = fr_core_news_md.load()
+pos = POSTagger()
+french_lemmatizer = LefffLemmatizer(after_melt=True)
+nlp.add_pipe(pos, name='pos', after='parser')
+nlp.add_pipe(french_lemmatizer, name='lefff', after='pos')
+
 # Add some words to "stop words" list because spaCy doesn't integrate them
 nlp.vocab["l"].is_stop = True
 nlp.vocab["d"].is_stop = True
@@ -52,8 +52,8 @@ def formatTriple(triple):
         - decode to remove special character
         - upper case first letter and remove space for """
     subjectFormat = unidecode(upperCaseFirstLetter(triple[0])).replace(" ", "")
-    predicateFormat = unidecode(upperCaseFirstLetter(getLemma(triple[1]))).replace(" ", "")
-    objFormat = unidecode(getLemma(triple[2]))
+    predicateFormat = unidecode(upperCaseFirstLetter(triple[1])).replace(" ", "")
+    objFormat = unidecode(triple[2])
     return subjectFormat, predicateFormat, objFormat
 
 
@@ -70,17 +70,6 @@ def removeStopWords(sent):
     return newSent[:len(newSent) - 1]
 
 
-def getLemma(sent):
-    """This function return lemma of each words of the sentence in parameter"""
-    tagger = treetaggerwrapper.TreeTagger(TAGLANG='fr')
-    tags = tagger.tag_text(sent)
-    tags = treetaggerwrapper.make_tags(tags)
-    newSent = ""
-    for tag in tags:
-        newSent += tag.lemma + ' '
-    return newSent
-
-
 def upperCaseFirstLetter(strToUpperCase):
     """This fonction uppercase first letter of each words of a string."""
     strLower = strToUpperCase.lower()
@@ -94,7 +83,7 @@ def upperCaseFirstLetter(strToUpperCase):
     return newStr
 
 
-def createTripleV6(sent, jobName):
+def createTripleSpacyLefff(sent, jobName):
     """This function create triples from a sentence to describe a job activity.
 
     This function create one or more triples. These triples describes a job activity.
@@ -108,80 +97,62 @@ def createTripleV6(sent, jobName):
     :param jobName: Name of the job which is describe.
 
     """
-    parsedSent = parser.raw_parse(sent)
+    extractedTokens = []
+    sentDoc = nlp(sent)
+    for token in sentDoc:
+        tag = token._.melt_tagger
+        if tag == 'V' or tag == 'VINF':
+            extractedTokens.append(['verb', token._.lefff_lemma if token._.lefff_lemma is not None else token.lemma_,
+                                    tag])
+        elif (tag == 'NC' or tag == 'ADJ') and token._.lefff_lemma is not None:
+            extractedTokens.append([tag, token._.lefff_lemma])
+        elif tag == 'CC':
+            extractedTokens.append([tag])
+
+    verbGroup = []
+    currentVerbGroup = []
+    containsV = False
+    containsVINF = False
+    nounGroup = []
+    currentNounGroup = []
+    for token in extractedTokens:
+        if token[0] == 'verb':
+            if not containsV and token[2] == 'V':
+                containsV = True
+            if not containsVINF and token[2] == 'VINF':
+                containsVINF = True
+            currentVerbGroup.append([token[1], token[2]])
+            if currentNounGroup:
+                nounGroup.append(currentNounGroup)
+                currentNounGroup = []
+        elif token[0] == 'NC' or token[0] == 'ADJ':
+            currentNounGroup.append(token[1])
+            if currentVerbGroup:
+                verbGroup.append(currentVerbGroup)
+                currentVerbGroup = []
+        elif token[0] == 'CC' and currentNounGroup:
+            currentNounGroup.append('CC')
+    if currentNounGroup:
+        nounGroup.append(currentNounGroup)
+    if currentVerbGroup:
+        verbGroup.append(currentVerbGroup)
+
     triples = []
-    concatNoun = ""
-    verb = ""
-    for line in parsedSent:
-        triples, concatNoun, verb = browseTreeV6(jobName, line, triples, concatNoun, verb)
-    triples.append((jobName, verb, getLemma(removeStopWords(concatNoun))))
-    return triples
+    for i in range(len(verbGroup)):
+        for verb in verbGroup[i]:
+            if containsV and containsVINF and verb[1] != 'V' or \
+                    (containsVINF and not containsV) or \
+                    (containsV and not containsVINF):
+                tripleObject = ""
+                for noun in nounGroup[i] if len(nounGroup)-1 >= i else nounGroup[len(nounGroup)-1]:
+                    if noun == 'CC':
+                        triples.append((jobName, verb[0], tripleObject))
+                        tripleObject = ""
+                    else:
+                        tripleObject += noun + " "
+                tripleObject = tripleObject[:-1]
+                triples.append((jobName, verb[0], tripleObject))
 
-
-
-def browseTreeV6(jobName, tree, triples, concatNoun, verb):
-    """This function browse a dependency tree to extract triple.
-
-    This function is mainly used by `createTripleV6` function of this module.
-
-    """
-    triples = triples
-    concatNoun = concatNoun
-    verb = verb
-    for child in tree:
-        if type(child) == Tree:
-            if child.label() == "VERB":
-                if verb == "":
-                    verb = child[0]
-                else:
-                    triples.append((jobName, verb, getLemma(removeStopWords(concatNoun))))
-                    concatNoun = ""
-                    verb = child[0]
-            elif (tree.label() == "NP" and type(child[0]) != Tree) or (
-                    tree.label() == "SENT" and child.label() == "NOUN"):
-                if concatNoun == "":
-                    concatNoun = child[0]
-                else:
-                    concatNoun += ' ' + child[0]
-            elif tree.label() == "NP":
-                triples, concatNoun, verb = browseTreeV6GetAll(jobName, child, triples, concatNoun, verb)
-            else:
-                triples, concatNoun, verb = browseTreeV6(jobName, child, triples, concatNoun, verb)
-    return triples, concatNoun, verb
-
-
-def browseTreeV6GetAll(jobName, tree, triples, concatNoun, verb):
-    """This function browse a dependency tree to extract triple.
-
-    This function is mainly used by `browseTreeV6GetAll` function of this module.
-
-    """
-    triples = triples
-    concatNoun = concatNoun
-    verb = verb
-    for child in tree:
-        if type(child) == Tree:
-            if child.label() == "VERB":
-                if verb == "":
-                    verb = child[0]
-                else:
-                    concatNoun = ""
-                    verb = child[0]
-            elif type(child[0]) != Tree:
-                if concatNoun == "":
-                    concatNoun = child[0]
-                else:
-                    concatNoun += ' ' + child[0]
-            else:
-                triples, concatNoun, verb = browseTreeV6GetAll(jobName, child, triples, concatNoun, verb)
-    return triples, concatNoun, verb
-
-
-def createTripleSpacyLefff(sent,jobname):
-    parsedSent = parser.raw_parse(sent)
-    triples = []
-    concatNoun = []
-    verb = []
     return triples
 
 
@@ -225,17 +196,18 @@ def insertTripleV6(graph, filePath, sent, jobName):
     - Predicate: it is the verb which represent activity.
     - Object: it is formed by several words extracted from the sentence to describe activity.
 
-    Triples creation is made by `createtripleV6` function from this module.
+    Triples creation is made by `createTripleSpacyLefff` function from this module.
 
     After triples are created and added to the graph, it is saved at turtle format.
 
-    :param graph: Rdflib graph on which the triple is added.
+    :param graph: Rdflib graph on which triples are added.
     :param filePath: Filepath where the graph will be saved.
     :param sent: Sentence from which triples are extracted.
     :param jobName: Name of the job which is describe.
 
     """
-    triples = createTripleV6(sent, jobName)
+
+    triples, triplesWithoutAdj = createTripleSpacyLefff(sent, jobName)
     for triple in triples:
         triple = formatTriple(triple)
         addTriple(graph, triple[0], triple[1], triple[2])
@@ -257,82 +229,4 @@ def insertTripleV6(graph, filePath, sent, jobName):
 # getLemma("Cadrer les activités avec les équipes agiles")
 
 
-# __________________________________Triples creation V4_______________________________________
-
-
-def createTripleV4(graph, sent, jobName):
-    """This function create triples from a sentence to describe a job activity.
-
-    This function create one or more triples and add them to a rdf graph. These triples describes a job activity.
-    This function implements version 4 of BOBI extraction triples.
-    Theses triples are formed as follow :
-    - Subject: it is the job name.
-    - Predicate: it is the verb which represent activity.
-    - Object: it is formed by several words extracted from the sentence to describe activity.
-
-    :param graph: Rdflib graph on which the triple is added.
-    :param sent: Sentence from which triples are extracted.
-    :param jobName: Name of the job which is describe.
-
-    """
-    parsedSent = parser.raw_parse(sent)
-    triples = []
-    concatNoun = ""
-    verb = ""
-    for line in parsedSent:
-        triples, concatNoun, verb = browseTreeV4(graph, jobName, line, triples, concatNoun, verb)
-    triples.append("(" + jobName + ", " + verb + ", " + concatNoun + ")")
-    addTriple(graph, jobName, verb, concatNoun)
-
-
-def browseTreeV4(graph, jobName, tree, triples, concatNoun, verb):
-    """This function browse a dependency tree to extract triple.
-
-    This function is mainly used by `createTripleV4` function of this module.
-
-    """
-    triples = triples
-    concatNoun = concatNoun
-    verb = verb
-    for child in tree:
-        if type(child) == Tree:
-            if child.label() == "VERB":
-                if verb == "":
-                    verb = child[0]
-                else:
-                    addTriple(graph, jobName, verb, concatNoun)
-                    triples.append("(" + jobName + ", " + verb + ", " + concatNoun + ")")
-                    concatNoun = ""
-                    verb = child[0]
-            elif tree.label() == "NP" and child.label() == "NOUN":
-                if concatNoun == "":
-                    concatNoun = child[0]
-                else:
-                    concatNoun += ' ' + child[0]
-            else:
-                triples, concatNoun, verb = browseTreeV4(graph, jobName, child, triples, concatNoun, verb)
-    return triples, concatNoun, verb
-
-
-def insertTripleV4(graph, filePath, sent, jobName):
-    """This function create and insert triples in a graph. Then this graph is saved.
-
-    This function create one or more triples and add them to a rdf graph. These triples describes a job activity.
-    This function implements version 4 of BOBI extraction triples.
-    Theses triples are formed as follow :
-    - Subject: it is the job name.
-    - Predicate: it is the verb which represent activity.
-    - Object: it is formed by several words extracted from the sentence to describe activity.
-
-    Triples creation is made by `createtripleV4` function from this module.
-
-    After triples are created and added to the graph, it is saved at turtle format.
-
-    :param graph: Rdflib graph on which the triple is added.
-    :param filePath: Filepath where the graph will be saved.
-    :param sent: Sentence from which triples are extracted.
-    :param jobName: Name of the job which is describe.
-
-    """
-    createTripleV4(graph, sent, jobName)
-    graph.serialize(destination=filePath, format="turtle")
+print(createTripleSpacyLefff("Je veux développer des logiciels et des sites web", 'Développeur'))

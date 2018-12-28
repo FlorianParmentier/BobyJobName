@@ -1,7 +1,7 @@
 from boby.queryRDF import requestTriples
-from boby.createRDF import createGraph, insertTripleV6, createTripleV6, formatTriple
+from boby.createRDF import createGraph, insertTripleV6, formatTriple, createTripleSpacyLefff
 
-graphV6 = createGraph("rdf/generatedRdfV6.ttl")
+graph = createGraph("rdf/generatedRdf.ttl")
 
 
 def feedGraph():
@@ -19,7 +19,7 @@ def feedGraph():
             print('Je suis encore jeune et aie beaucoup à apprendre, pourriez vous écrire moins de 140 caractères '
                   's\'il vous plait ?')
         else:
-            insertTripleV6(graphV6, "rdf/generatedRdfV6.ttl", action, job)
+            insertTripleV6(graph, "rdf/generatedRdf.ttl", action, job)
 
 
 def findJob():
@@ -35,7 +35,7 @@ def findJob():
             print('Je suis encore jeune et aie beaucoup à apprendre, pourriez vous écrire moins de 140 caractères '
                   's\'il vous plait ?')
         else:
-            triples = createTripleV6(action, "")
+            triples = createTripleSpacyLefff(action, "")
             for triple in triples:
                 triple = formatTriple(triple)
                 # print(triple)
