@@ -13,11 +13,14 @@ def createGraph(filePath):
     return graph
 
 
-def requestTriples(predicate, obj):
+graph = createGraph("rdf/generatedRdf.ttl")
+
+
+def requestJobName(predicate, obj, alreadyUsedTriple=[]):
     """This function request a graph to find triples with an object similar from paramater
 
     The function request each triple which have an object where a word in the parameter appear"""
-    graph = createGraph("rdf/generatedRdfV6.ttl")
+    usedTriples = alreadyUsedTriple
     objWords = obj.split(" ")
     regex = ''
     for word in objWords:
@@ -26,19 +29,37 @@ def requestTriples(predicate, obj):
         elif word != "":
             regex += '|' + word
     result = []
-    query = "SELECT DISTINCT ?jobLabel ?predicateLabel " \
+    query = "SELECT DISTINCT ?jobLabel ?predicateLabel ?objectLabel " \
             "WHERE {?job a :Job. " \
             "?job rdfs:label ?jobLabel. " \
             "?predicate a :Action. " \
             "?predicate rdfs:label ?predicateLabel. " \
-            "?job ?predicate ?action. " \
-            "?action rdfs:label ?actionLabel. " \
-            "FILTER regex(?actionLabel, \"" + regex + "\", \"i\")}"
+            "?job ?predicate ?object. " \
+            "?object rdfs:label ?objectLabel. " \
+            "FILTER regex(?objectLabel, \"" + regex + "\", \"i\")}"
     resultQuery = graph.query(query)
+    alreadyMatchedJob = []
     for row in resultQuery:
-        if str(row[1]) == predicate:
+        if str(row[1]) == predicate and row[0] not in alreadyMatchedJob:
             result.append(str(row[0]))
-    return result
+            alreadyMatchedJob.append(row[0])
+            usedTriples.append(row)
+    return result, usedTriples
 
 
-# requestTriples("developper", "logiciel")
+def requestActionFromJob(jobName, alreadyUsedTriple=[]):
+    query = "SELECT DISTINCT ?jobLabel ?predicateLabel ?objectLabel " \
+            "WHERE {?job a :Job. " \
+            "?job rdfs:label ?jobLabel. " \
+            "?job ?predicate ?object." \
+            "?predicate rdfs:label ?predicateLabel. " \
+            "?object rdfs:label ?objectLabel. " \
+            "?job rdfs:label \"" + jobName + "\".}"
+    result = graph.query(query)
+    for row in result:
+        if row not in alreadyUsedTriple:
+            alreadyUsedTriple.append(row)
+            return jobName, str(row[1]), str(row[2])
+    return ()
+
+# print(requestActionFromJob(["Developpeur", "Recruteur"]))

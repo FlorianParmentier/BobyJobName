@@ -6,7 +6,7 @@ import os
 from unidecode import unidecode
 import fr_core_news_md
 from spacy_lefff import LefffLemmatizer, POSTagger
-
+import logging
 
 nlp = fr_core_news_md.load()
 pos = POSTagger()
@@ -144,11 +144,14 @@ def createTripleSpacyLefff(sent, jobName):
                     (containsVINF and not containsV) or \
                     (containsV and not containsVINF):
                 tripleObject = ""
-                for noun in nounGroup[i] if len(nounGroup)-1 >= i else nounGroup[len(nounGroup)-1]:
-                    if noun == 'CC':
+                nouns = []
+                if len(nounGroup):
+                    nouns = nounGroup[i] if i <= len(nounGroup) - 1 else nounGroup[- 1]
+                for index, noun in enumerate(nouns):
+                    if noun == 'CC' and index < len(nouns) - 1:
                         triples.append((jobName, verb[0], tripleObject))
                         tripleObject = ""
-                    else:
+                    elif noun != 'CC':
                         tripleObject += noun + " "
                 tripleObject = tripleObject[:-1]
                 triples.append((jobName, verb[0], tripleObject))
@@ -207,12 +210,11 @@ def insertTripleV6(graph, filePath, sent, jobName):
 
     """
 
-    triples, triplesWithoutAdj = createTripleSpacyLefff(sent, jobName)
+    triples = createTripleSpacyLefff(sent, jobName)
     for triple in triples:
         triple = formatTriple(triple)
         addTriple(graph, triple[0], triple[1], triple[2])
     graph.serialize(destination=filePath, format="turtle")
-
 
 # Les lignes de codes suivantes servent à tester le fonctionnement des méthodes de ce fichier.
 # TODO : supprimer les lignes suivantes une fois le service fonctionnel et terminé.
@@ -229,4 +231,4 @@ def insertTripleV6(graph, filePath, sent, jobName):
 # getLemma("Cadrer les activités avec les équipes agiles")
 
 
-print(createTripleSpacyLefff("Je veux développer des logiciels et des sites web", 'Développeur'))
+# print(createTripleSpacyLefff("Je veux développer des logiciels et des sites web", 'Développeur'))
