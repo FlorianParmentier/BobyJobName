@@ -1,12 +1,9 @@
-from nltk.tree import Tree
-from spacy.lang.fr import French
 from rdflib import Graph, Literal, RDF, RDFS, Namespace, BNode, URIRef
 import pathlib
 import os
 from unidecode import unidecode
 import fr_core_news_md
 from spacy_lefff import LefffLemmatizer, POSTagger
-import logging
 
 nlp = fr_core_news_md.load()
 pos = POSTagger()
@@ -99,6 +96,8 @@ def createTripleSpacyLefff(sent, jobName):
     """
     extractedTokens = []
     sentDoc = nlp(sent)
+
+    # Extract all interresting tokkens from sentence
     for token in sentDoc:
         tag = token._.melt_tagger
         if tag == 'V' or tag == 'VINF':
@@ -115,6 +114,8 @@ def createTripleSpacyLefff(sent, jobName):
     containsVINF = False
     nounGroup = []
     currentNounGroup = []
+
+    # Create group of verb and noun to identify which noun remain to which verb
     for token in extractedTokens:
         if token[0] == 'verb':
             if not containsV and token[2] == 'V':

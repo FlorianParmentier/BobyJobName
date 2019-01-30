@@ -1,4 +1,3 @@
-import boby.queryRDF
 
 
 class Candidate:

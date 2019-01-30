@@ -110,7 +110,7 @@ def findJob():
             if action:
                 proposals.append(str(index + 1) + " : " + action[1] + " " + action[2])
         if proposals:
-            print("\nQue préférez-vous entre les trois propositions suivantes ?")
+            print("\nQue préférez-vous entre les propositions suivantes ?")
             for prop in proposals:
                 print(prop)
         else:

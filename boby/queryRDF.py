@@ -48,6 +48,15 @@ def requestJobName(predicate, obj, alreadyUsedTriple=[]):
 
 
 def requestActionFromJob(jobName, alreadyUsedTriple=[]):
+    """
+    This function return an action which correspond to a given job and which has not been already used
+
+    It is used to create forms at the end of conversation with a candidate to make result more accurate.
+
+    :param jobName: Name of the job whose belongs action
+    :param alreadyUsedTriple: List of already used triples
+    :return: Return a triple which belongs to the job given in parameter
+    """
     query = "SELECT DISTINCT ?jobLabel ?predicateLabel ?objectLabel " \
             "WHERE {?job a :Job. " \
             "?job rdfs:label ?jobLabel. " \
